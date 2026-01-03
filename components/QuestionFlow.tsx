@@ -71,6 +71,8 @@ Start by introducing yourself briefly and asking your first question about ${fri
             throw new Error('OpenRouter API key not configured');
         }
 
+        console.log('Calling OpenRouter with history:', history.length, 'messages');
+
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
             headers: {
@@ -80,7 +82,7 @@ Start by introducing yourself briefly and asking your first question about ${fri
                 'X-Title': 'Moos Gift Finder',
             },
             body: JSON.stringify({
-                model: 'mistralai/mistral-small-creative',
+                model: 'google/gemini-2.0-flash-001',
                 messages: history,
                 temperature: 0.9,
                 max_tokens: 300,
@@ -89,11 +91,12 @@ Start by introducing yourself briefly and asking your first question about ${fri
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('OpenRouter API error:', errorData);
-            throw new Error('Failed to get AI response');
+            console.error('OpenRouter API error:', response.status, errorData);
+            throw new Error(errorData?.error?.message || 'Failed to get AI response');
         }
 
         const data = await response.json();
+        console.log('OpenRouter response:', data);
         return data.choices?.[0]?.message?.content || 'Sorry, I had a hiccup. Could you repeat that?';
     };
 

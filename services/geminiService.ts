@@ -85,7 +85,7 @@ Respond ONLY with valid JSON in this exact format:
       'X-Title': 'Moos Gift Finder',
     },
     body: JSON.stringify({
-      model: 'mistralai/mistral-small-creative',
+      model: 'google/gemini-2.0-flash-001',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.8,
       max_tokens: 2048,
