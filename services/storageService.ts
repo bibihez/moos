@@ -173,4 +173,34 @@ export const storageService = {
     const owned = getStore<string[]>(KEYS.OWNED, []);
     return owned.includes(birthdayId);
   },
+
+  // Get birthday without throwing (returns null if not found)
+  getBirthdayOrNull(id: string): Birthday | null {
+    const store = getStore<BirthdayStore>(KEYS.BIRTHDAYS, {});
+    return store[id] || null;
+  },
+
+  // Create birthday from URL-encoded data (for guests visiting shared links)
+  createBirthdayFromUrl(
+    id: string,
+    data: { fn: string; on: string; bMin: number; bMax: number; s: string }
+  ): Birthday {
+    const birthday: Birthday = {
+      id,
+      friendName: data.fn,
+      organizerName: data.on,
+      budgetMin: data.bMin,
+      budgetMax: data.bMax,
+      status: data.s as Birthday['status'],
+      date: '',
+      organizerEmail: '',
+    };
+
+    // Save to guest's localStorage for subsequent visits
+    const store = getStore<BirthdayStore>(KEYS.BIRTHDAYS, {});
+    store[id] = birthday;
+    setStore(KEYS.BIRTHDAYS, store);
+
+    return birthday;
+  },
 };

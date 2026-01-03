@@ -51,15 +51,38 @@ export default function App() {
 
   // --- Routing & Init ---
   useEffect(() => {
-    // Check hash for "b/{id}"
+    // Check hash for "b/{id}" with optional "?d={encoded_data}" for cross-device sharing
     const checkHash = async () => {
       const hash = window.location.hash;
       if (hash.startsWith('#/b/')) {
-        const bId = hash.split('#/b/')[1];
+        // Split hash from query string
+        const [hashPath, queryString] = hash.split('?');
+        const bId = hashPath.split('#/b/')[1];
+
         if (bId) {
           setIsLoading(true);
           try {
-            const birthday = await storageService.getBirthday(bId);
+            // Try localStorage first
+            let birthday = storageService.getBirthdayOrNull(bId);
+
+            // If not found in localStorage, try to decode from URL
+            if (!birthday && queryString) {
+              const params = new URLSearchParams(queryString);
+              const encoded = params.get('d');
+              if (encoded) {
+                try {
+                  const data = JSON.parse(atob(encoded));
+                  birthday = storageService.createBirthdayFromUrl(bId, data);
+                } catch {
+                  // Invalid encoded data, will show error below
+                }
+              }
+            }
+
+            if (!birthday) {
+              throw new Error('Birthday not found');
+            }
+
             setCurrentBirthday(birthday);
 
             // Determine view based on status
@@ -249,7 +272,16 @@ export default function App() {
 
   const copyLink = () => {
     if (!currentBirthday) return;
-    const url = `${window.location.origin}/#/b/${currentBirthday.id}`;
+    // Encode essential birthday data in URL so guests can access it
+    const data = {
+      fn: currentBirthday.friendName,
+      on: currentBirthday.organizerName,
+      bMin: currentBirthday.budgetMin,
+      bMax: currentBirthday.budgetMax,
+      s: currentBirthday.status,
+    };
+    const encoded = btoa(JSON.stringify(data));
+    const url = `${window.location.origin}/#/b/${currentBirthday.id}?d=${encoded}`;
     navigator.clipboard.writeText(url);
     alert("Link copied to clipboard!");
   };
