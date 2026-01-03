@@ -330,12 +330,15 @@ export default function App() {
             onChange={e => setCreateForm({ ...createForm, friendName: e.target.value })}
           />
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Year"
-              placeholder="YYYY"
-              value={createForm.date}
-              onChange={e => setCreateForm({ ...createForm, date: e.target.value })}
-            />
+            <div>
+              <label className="block text-sm font-medium text-warm-700 mb-1">Birthday Date</label>
+              <input
+                type="date"
+                value={createForm.date}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreateForm({ ...createForm, date: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl bg-cream-50 border border-cream-200 focus:outline-none focus:ring-2 focus:ring-soft-gold text-warm-700"
+              />
+            </div>
             <Input
               label="Organizer (You)"
               placeholder="Your Name"
