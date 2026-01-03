@@ -39,14 +39,14 @@ export default function App() {
   const [giftIdeas, setGiftIdeas] = useState<GiftIdea[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
 
-  // Form States (Hardcoded for testing)
+  // Form States
   const [createForm, setCreateForm] = useState({
-    friendName: 'Sarah',
-    date: '2025-11-20',
+    friendName: '',
+    date: '',
     budgetMin: '30',
     budgetMax: '100',
-    organizerName: 'Alex',
-    organizerEmail: 'alex@example.com'
+    organizerName: '',
+    organizerEmail: ''
   });
 
   // --- Real-time participant updates ---
@@ -578,33 +578,98 @@ export default function App() {
     </Layout>
   );
 
-  const renderPayment = () => (
-    <Layout title="Payment Info">
-      <Card className="text-center space-y-6 py-12">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600">
-          <Sparkles className="w-8 h-8" />
-        </div>
-        <h2 className="text-2xl font-bold text-warm-800">Votes Submitted!</h2>
-        <p className="text-warm-600">
-          The organizer ({currentBirthday?.organizerName}) will review the votes and secure the gift.
-        </p>
+  const [ibanInput, setIbanInput] = useState('');
+  const [markingPaid, setMarkingPaid] = useState(false);
 
-        <div className="bg-white border border-cream-200 p-6 rounded-2xl shadow-sm text-left space-y-2">
-          <h4 className="font-bold text-warm-700 flex items-center"><AlertCircle className="w-4 h-4 mr-2" /> Payment Details</h4>
-          <p className="text-sm text-warm-500">Please send your share to:</p>
-          <div className="font-mono bg-cream-50 p-3 rounded-lg text-warm-800 text-sm mt-2">
-            BE12 3456 7890 1234<br />
-            {currentBirthday?.organizerName}
+  const handleSaveIban = async () => {
+    if (!currentBirthday || !ibanInput.trim()) return;
+    try {
+      await storageService.updateIban(currentBirthday.id, ibanInput.trim());
+      setCurrentBirthday({ ...currentBirthday, organizerIban: ibanInput.trim() });
+    } catch (e) {
+      setError("Failed to save IBAN");
+    }
+  };
+
+  const handleMarkAsPaid = async () => {
+    if (!participantId) return;
+    setMarkingPaid(true);
+    try {
+      await storageService.markAsPaid(participantId);
+      alert("Thanks! You've been marked as paid.");
+    } catch (e) {
+      setError("Failed to mark as paid");
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
+
+  const renderPayment = () => {
+    const isOrganizer = currentBirthday ? storageService.isOwner(currentBirthday.id) : false;
+
+    return (
+      <Layout title="Payment Info">
+        <Card className="text-center space-y-6 py-12">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600">
+            <Sparkles className="w-8 h-8" />
           </div>
-          <p className="text-xs text-warm-400 mt-2">Mention "{currentBirthday?.friendName}" in description.</p>
-        </div>
+          <h2 className="text-2xl font-bold text-warm-800">Votes Submitted!</h2>
+          <p className="text-warm-600">
+            The organizer ({currentBirthday?.organizerName}) will review the votes and secure the gift.
+          </p>
 
-        <Button variant="outline" onClick={() => setView(AppView.LANDING)}>
-          Back to Home
-        </Button>
-      </Card>
-    </Layout>
-  );
+          <div className="bg-white border border-cream-200 p-6 rounded-2xl shadow-sm text-left space-y-3">
+            <h4 className="font-bold text-warm-700 flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2" /> Payment Details
+            </h4>
+
+            {currentBirthday?.organizerIban ? (
+              <>
+                <p className="text-sm text-warm-500">Please send your share to:</p>
+                <div className="font-mono bg-cream-50 p-3 rounded-lg text-warm-800 text-sm">
+                  {currentBirthday.organizerIban}<br />
+                  {currentBirthday.organizerName}
+                </div>
+                <p className="text-xs text-warm-400">Mention "{currentBirthday?.friendName}" in description.</p>
+              </>
+            ) : isOrganizer ? (
+              <div className="space-y-3">
+                <p className="text-sm text-warm-500">Add your IBAN so friends can send their share:</p>
+                <input
+                  type="text"
+                  placeholder="e.g. BE12 3456 7890 1234"
+                  value={ibanInput}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIbanInput(e.target.value)}
+                  className="w-full p-3 rounded-lg border border-cream-200 text-warm-700 font-mono text-sm"
+                />
+                <Button onClick={handleSaveIban} variant="outline" className="w-full">
+                  Save IBAN
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-warm-500 italic">
+                The organizer hasn't added payment details yet. Check back later!
+              </p>
+            )}
+          </div>
+
+          {!isOrganizer && currentBirthday?.organizerIban && (
+            <Button
+              onClick={handleMarkAsPaid}
+              isLoading={markingPaid}
+              variant="secondary"
+            >
+              I've Paid My Share
+            </Button>
+          )}
+
+          <Button variant="outline" onClick={() => setView(AppView.LANDING)}>
+            Back to Home
+          </Button>
+        </Card>
+      </Layout>
+    );
+  };
 
   return (
     <main className="font-sans antialiased text-warm-700 selection:bg-soft-gold selection:text-white min-h-screen">
