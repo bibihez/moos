@@ -1,0 +1,65 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+body {
+    background-color: #FDFBF7;
+    background-image:
+        radial-gradient(at 0% 0%, #FAE5C7 0%, transparent 50%),
+        radial-gradient(at 100% 0%, #F7F3EB 0%, transparent 50%),
+        radial-gradient(at 100% 100%, #E6C288 0%, transparent 50%),
+        radial-gradient(at 0% 100%, #FAE5C7 0%, transparent 50%),
+        radial-gradient(at 50% 50%, #ffffff 0%, transparent 50%);
+    background-attachment: fixed;
+    background-size: cover;
+    @apply text-warm-700 antialiased;
+}
+
+::view-transition-old(root) {
+    animation: 90ms cubic-bezier(0.4, 0, 1, 1) both fade-out,
+        300ms cubic-bezier(0.4, 0, 0.2, 1) both slide-to-left;
+}
+
+::view-transition-new(root) {
+    animation: 210ms cubic-bezier(0, 0, 0.2, 1) 90ms both fade-in,
+        300ms cubic-bezier(0.4, 0, 0.2, 1) both slide-from-right;
+}
+
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes fade-out {
+    0% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes slide-from-right {
+    0% {
+        transform: translateX(30px);
+    }
+
+    100% {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slide-to-left {
+    0% {
+        transform: translateX(0);
+    }
+
+    100% {
+        transform: translateX(-30px);
+    }
+}
