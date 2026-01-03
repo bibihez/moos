@@ -25,6 +25,8 @@ export interface Birthday {
   budgetMax: number;
   organizerName: string;
   organizerEmail: string;
+  organizerIban?: string;
+  organizerToken?: string;
   status: 'collecting' | 'voting' | 'completed';
   persona?: Persona;
 }

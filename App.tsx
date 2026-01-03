@@ -49,9 +49,23 @@ export default function App() {
     organizerEmail: 'alex@example.com'
   });
 
+  // --- Real-time participant updates ---
+  useEffect(() => {
+    if (!currentBirthday || view !== AppView.ORGANIZER_DASHBOARD) return;
+
+    const unsubscribe = storageService.subscribeToParticipants(
+      currentBirthday.id,
+      (updatedParticipants) => {
+        setParticipants(updatedParticipants);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentBirthday?.id, view]);
+
   // --- Routing & Init ---
   useEffect(() => {
-    // Check hash for "b/{id}" with optional "?d={encoded_data}" for cross-device sharing
+    // Check hash for "b/{id}" with optional "?token={organizer_token}" for cross-device organizer access
     const checkHash = async () => {
       const hash = window.location.hash;
       if (hash.startsWith('#/b/')) {
@@ -62,22 +76,17 @@ export default function App() {
         if (bId) {
           setIsLoading(true);
           try {
-            // Try localStorage first
-            let birthday = storageService.getBirthdayOrNull(bId);
-
-            // If not found in localStorage, try to decode from URL
-            if (!birthday && queryString) {
+            // Check for organizer token in URL (for cross-device access)
+            if (queryString) {
               const params = new URLSearchParams(queryString);
-              const encoded = params.get('d');
-              if (encoded) {
-                try {
-                  const data = JSON.parse(atob(encoded));
-                  birthday = storageService.createBirthdayFromUrl(bId, data);
-                } catch {
-                  // Invalid encoded data, will show error below
-                }
+              const token = params.get('token');
+              if (token) {
+                storageService.saveTokenFromUrl(bId, token);
               }
             }
+
+            // Fetch birthday from Supabase
+            const birthday = await storageService.getBirthdayOrNull(bId);
 
             if (!birthday) {
               throw new Error('Birthday not found');
@@ -85,8 +94,8 @@ export default function App() {
 
             setCurrentBirthday(birthday);
 
-            // Determine view based on status
-            const isOrganizer = storageService.isOwner(bId);
+            // Determine view based on status and ownership
+            const isOrganizer = storageService.isOwner(bId, birthday.organizerToken);
 
             if (isOrganizer) {
               // Fetch participants for the dashboard
@@ -281,20 +290,20 @@ export default function App() {
     }
   };
 
-  const copyLink = () => {
+  const copyLink = (includeOrganizerToken: boolean = false) => {
     if (!currentBirthday) return;
-    // Encode essential birthday data in URL so guests can access it
-    const data = {
-      fn: currentBirthday.friendName,
-      on: currentBirthday.organizerName,
-      bMin: currentBirthday.budgetMin,
-      bMax: currentBirthday.budgetMax,
-      s: currentBirthday.status,
-    };
-    const encoded = btoa(JSON.stringify(data));
-    const url = `${window.location.origin}/#/b/${currentBirthday.id}?d=${encoded}`;
+
+    let url = `${window.location.origin}/#/b/${currentBirthday.id}`;
+
+    // Include organizer token for cross-device organizer access
+    if (includeOrganizerToken && currentBirthday.organizerToken) {
+      url += `?token=${currentBirthday.organizerToken}`;
+    }
+
     navigator.clipboard.writeText(url);
-    alert("Link copied to clipboard!");
+    alert(includeOrganizerToken
+      ? "Organizer link copied! Use this on other devices to manage the birthday."
+      : "Link copied to clipboard!");
   };
 
   // --- Renderers ---
@@ -393,12 +402,20 @@ export default function App() {
             </p>
           </div>
 
-          <div className="flex items-center space-x-2 bg-cream-50 p-3 rounded-xl border border-dashed border-warm-300">
-            <span className="flex-1 text-xs text-warm-400 truncate">
-              {window.location.origin}/#/b/{currentBirthday?.id}
-            </span>
-            <button onClick={copyLink} className="text-soft-gold font-bold text-sm hover:text-gold-600">
-              Copy
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2 bg-cream-50 p-3 rounded-xl border border-dashed border-warm-300">
+              <span className="flex-1 text-xs text-warm-400 truncate">
+                {window.location.origin}/#/b/{currentBirthday?.id}
+              </span>
+              <button onClick={() => copyLink(false)} className="text-soft-gold font-bold text-sm hover:text-gold-600">
+                Copy
+              </button>
+            </div>
+            <button
+              onClick={() => copyLink(true)}
+              className="text-xs text-warm-400 hover:text-warm-600 underline"
+            >
+              Copy organizer link (for your other devices)
             </button>
           </div>
         </Card>
