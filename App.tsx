@@ -13,7 +13,7 @@ import { VotingResults } from './components/VotingResults';
 import { AppView, Birthday, CORE_QUESTIONS, GiftIdea, Participant, Persona } from './types';
 import { storageService } from './services/storageService';
 import { generateGiftsAndPersona } from './services/geminiService';
-import { Gift, Share2, Sparkles, AlertCircle } from 'lucide-react';
+import { Gift, Share2, Sparkles, AlertCircle, MessageCircle } from 'lucide-react';
 
 export default function App() {
   const [view, setViewInternal] = useState<AppView>(AppView.LANDING);
@@ -136,7 +136,15 @@ export default function App() {
       });
       setCurrentBirthday(newBirthday);
 
-      // Organizer implicitly joins context, but for MVP just show dashboard
+      // Auto-add organizer as participant (but not answered yet)
+      const organizerParticipant = await storageService.joinBirthday(
+        newBirthday.id,
+        createForm.organizerName
+      );
+      setParticipantId(organizerParticipant.id);
+      setParticipantName(createForm.organizerName);
+      setParticipants([organizerParticipant]);
+
       setView(AppView.ORGANIZER_DASHBOARD);
       // Update URL without reload
       window.history.pushState(null, '', `#/b/${newBirthday.id}`);
@@ -177,6 +185,9 @@ export default function App() {
       const isOrganizer = storageService.isOwner(currentBirthday.id);
 
       if (isOrganizer) {
+        // Refresh participants list to show updated status
+        const parts = await storageService.getParticipants(currentBirthday.id);
+        setParticipants(parts);
         setView(AppView.ORGANIZER_DASHBOARD);
       } else {
         setView(AppView.PARTICIPANT_THANK_YOU);
@@ -409,20 +420,67 @@ export default function App() {
           />
         </Card>
 
+        {/* Organizer's own input */}
+        {(() => {
+          const organizerParticipant = participants.find(p => p.name === currentBirthday?.organizerName);
+          const hasOrganizerAnswered = organizerParticipant?.hasAnswered;
+
+          return (
+            <Card className="py-5">
+              <div className="text-center space-y-4">
+                <p className="text-xs text-warm-400 uppercase tracking-wider font-bold">Your Input</p>
+                {hasOrganizerAnswered ? (
+                  <p className="text-sm text-green-600 font-medium">
+                    You've shared your thoughts about {currentBirthday?.friendName}!
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-warm-600">
+                      Share what you know about {currentBirthday?.friendName} to help the AI.
+                    </p>
+                    <Button onClick={() => setView(AppView.PARTICIPANT_QUESTIONS)} variant="outline">
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Answer Questions
+                    </Button>
+                  </>
+                )}
+              </div>
+            </Card>
+          );
+        })()}
+
         {/* AI Generation */}
-        <Card className="py-6">
-          <div className="text-center space-y-4">
-            <p className="text-xs text-warm-400 uppercase tracking-wider font-bold">Organizer Controls</p>
-            <p className="text-sm text-warm-600">
-              Once enough friends have answered the questions, let our AI handle the brainstorming.
-            </p>
-            {error && <div className="text-red-500 text-sm font-medium">{error}</div>}
-            <Button onClick={handleTriggerAI} isLoading={isLoading} className="bg-warm-800 hover:bg-warm-900">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate 10 Gift Ideas
-            </Button>
-          </div>
-        </Card>
+        {(() => {
+          const answeredCount = participants.filter(p => p.hasAnswered).length;
+          const canGenerate = answeredCount >= 1;
+
+          return (
+            <Card className="py-6">
+              <div className="text-center space-y-4">
+                <p className="text-xs text-warm-400 uppercase tracking-wider font-bold">Generate Gifts</p>
+                {answeredCount === 0 ? (
+                  <p className="text-sm text-warm-500">
+                    Waiting for at least 1 person to answer questions...
+                  </p>
+                ) : (
+                  <p className="text-sm text-warm-600">
+                    {answeredCount} {answeredCount === 1 ? 'person has' : 'people have'} answered. Ready to generate!
+                  </p>
+                )}
+                {error && <div className="text-red-500 text-sm font-medium">{error}</div>}
+                <Button
+                  onClick={handleTriggerAI}
+                  isLoading={isLoading}
+                  disabled={!canGenerate}
+                  className={canGenerate ? "bg-warm-800 hover:bg-warm-900" : "bg-gray-300 cursor-not-allowed"}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate 10 Gift Ideas
+                </Button>
+              </div>
+            </Card>
+          );
+        })()}
       </div>
     </Layout>
   );
