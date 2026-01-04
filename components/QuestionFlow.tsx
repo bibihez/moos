@@ -13,36 +13,25 @@ interface Message {
     text: string;
 }
 
-interface ChatMessage {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-}
+// n8n webhook URL for the Moos AI agent
+const N8N_WEBHOOK_URL = 'https://bibihez.app.n8n.cloud/webhook/426ea6b1-48d0-4e66-91a1-4cd6367d002e';
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+// Generate a unique session ID for each conversation
+const generateSessionId = () => `moos_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
 export const QuestionFlow: React.FC<QuestionFlowProps> = ({ friendName, onComplete }) => {
     const [messages, setMessages] = useState<Message[]>([]);
-    const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [exchangeCount, setExchangeCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const initialized = useRef(false);
 
-    const systemPrompt = `You are Moos, a friendly gift-finding assistant helping friends find the perfect birthday gift for ${friendName}.
+    // Unique session ID for this conversation - created once per component mount
+    const sessionIdRef = useRef<string>(generateSessionId());
 
-Your goal is to have a natural, warm conversation to learn about ${friendName}'s personality, interests, and what would make them happy.
-
-Guidelines:
-- Be conversational and friendly, like chatting with a friend
-- Ask ONE question at a time
-- React to their answers with brief acknowledgments before asking the next question
-- Explore topics like: hobbies, recent obsessions, things they complain about, guilty pleasures, things they'd never buy themselves
-- After 5-6 exchanges, wrap up naturally by saying you have enough info
-- Keep responses concise (2-3 sentences max)
-- Use casual language, occasional emojis are fine
-
-Start by introducing yourself briefly and asking your first question about ${friendName}.`;
+    // Track conversation for final export
+    const conversationRef = useRef<{ role: string; content: string }[]>([]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -58,70 +47,57 @@ Start by introducing yourself briefly and asking your first question about ${fri
 
     const addBotMessage = (text: string) => {
         setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'bot', text }]);
+        conversationRef.current.push({ role: 'assistant', content: text });
     };
 
     const addUserMessage = (text: string) => {
         setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'user', text }]);
+        conversationRef.current.push({ role: 'user', content: text });
     };
 
-    const callAI = async (history: ChatMessage[]): Promise<string> => {
-        const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+    const callMoosAgent = async (message: string, isFirstMessage: boolean = false): Promise<string> => {
+        console.log('Calling Moos agent with sessionId:', sessionIdRef.current);
 
-        if (!apiKey) {
-            throw new Error('OpenRouter API key not configured');
-        }
+        const payload = {
+            sessionId: sessionIdRef.current,
+            chatInput: isFirstMessage
+                ? `My friend's name is ${friendName}. Please introduce yourself and start asking questions about them.`
+                : message,
+            friendName: friendName,
+        };
 
-        console.log('Calling OpenRouter with history:', history.length, 'messages');
+        console.log('Payload:', payload);
 
-        const response = await fetch(OPENROUTER_API_URL, {
+        const response = await fetch(N8N_WEBHOOK_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': window.location.origin,
-                'X-Title': 'Moos Gift Finder',
             },
-            body: JSON.stringify({
-                model: 'google/gemini-2.0-flash-001',
-                messages: history,
-                temperature: 0.9,
-                max_tokens: 300,
-            }),
+            body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('OpenRouter API error:', response.status, errorData);
-            throw new Error(errorData?.error?.message || 'Failed to get AI response');
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error('n8n webhook error:', response.status, errorText);
+            throw new Error('Failed to get AI response');
         }
 
         const data = await response.json();
-        console.log('OpenRouter response:', data);
-        return data.choices?.[0]?.message?.content || 'Sorry, I had a hiccup. Could you repeat that?';
+        console.log('Moos agent response:', data);
+
+        // n8n AI Agent returns the response in the output field
+        return data.output || data.response || data.text || 'Sorry, I had a hiccup. Could you repeat that?';
     };
 
     const startConversation = async () => {
         setIsTyping(true);
         try {
-            const initialHistory: ChatMessage[] = [
-                { role: 'system', content: systemPrompt }
-            ];
-
-            const response = await callAI(initialHistory);
-
-            setChatHistory([
-                ...initialHistory,
-                { role: 'assistant', content: response }
-            ]);
-
+            const response = await callMoosAgent('', true);
             addBotMessage(response);
         } catch (error) {
             console.error('Error starting conversation:', error);
-            addBotMessage(`Hi! I'm Moos, here to help find the perfect gift for ${friendName}! 🎁 Tell me, what's something ${friendName} has been really into lately?`);
-            setChatHistory([
-                { role: 'system', content: systemPrompt },
-                { role: 'assistant', content: `Hi! I'm Moos, here to help find the perfect gift for ${friendName}! 🎁 Tell me, what's something ${friendName} has been really into lately?` }
-            ]);
+            const fallbackMessage = `Hi! I'm Moos, here to help find the perfect gift for ${friendName}! 🎁 Tell me, what's something ${friendName} has been really into lately?`;
+            addBotMessage(fallbackMessage);
         } finally {
             setIsTyping(false);
         }
@@ -139,30 +115,10 @@ Start by introducing yourself briefly and asking your first question about ${fri
         setExchangeCount(newExchangeCount);
 
         try {
-            // Build updated history
-            const updatedHistory: ChatMessage[] = [
-                ...chatHistory,
-                { role: 'user', content: userMessage }
-            ];
-
-            // If we've had enough exchanges, tell AI to wrap up
-            if (newExchangeCount >= 5) {
-                updatedHistory[0] = {
-                    role: 'system',
-                    content: systemPrompt + '\n\nIMPORTANT: You now have enough information. Thank the user warmly and say you have great ideas for gifts. End with something like "Thanks so much! I have everything I need to find some perfect gifts for [name]!"'
-                };
-            }
-
-            const response = await callAI(updatedHistory);
-
-            setChatHistory([
-                ...updatedHistory,
-                { role: 'assistant', content: response }
-            ]);
-
+            const response = await callMoosAgent(userMessage);
             addBotMessage(response);
 
-            // Check if conversation should end (after 5+ exchanges or AI indicates completion)
+            // Check if conversation should end
             const isComplete = newExchangeCount >= 5 ||
                 response.toLowerCase().includes('everything i need') ||
                 response.toLowerCase().includes('have enough') ||
@@ -170,17 +126,14 @@ Start by introducing yourself briefly and asking your first question about ${fri
 
             if (isComplete) {
                 setTimeout(() => {
-                    // Convert chat history to answers format for compatibility
-                    const conversationText = chatHistory
+                    const conversationText = conversationRef.current
                         .filter(m => m.role === 'user')
                         .map(m => m.content)
                         .join('\n\n');
 
-                    // Store the full conversation as a single "answer" for gift generation
                     onComplete({
                         1: conversationText,
-                        // Also pass the full chat for richer context
-                        999: JSON.stringify(chatHistory.filter(m => m.role !== 'system'))
+                        999: JSON.stringify(conversationRef.current)
                     });
                 }, 2000);
             }
@@ -200,35 +153,34 @@ Start by introducing yourself briefly and asking your first question about ${fri
     };
 
     const handleSkip = () => {
-        // Allow user to skip/end early
-        const conversationText = chatHistory
+        const conversationText = conversationRef.current
             .filter(m => m.role === 'user')
             .map(m => m.content)
             .join('\n\n');
 
         onComplete({
             1: conversationText || 'No specific answers provided',
-            999: JSON.stringify(chatHistory.filter(m => m.role !== 'system'))
+            999: JSON.stringify(conversationRef.current)
         });
     };
 
     return (
-        <div className="flex flex-col h-[600px] w-full max-w-lg mx-auto bg-white rounded-3xl shadow-xl border border-cream-200 overflow-hidden">
+        <div className="flex flex-col h-[100dvh] sm:h-[600px] w-full max-w-lg mx-auto bg-white sm:rounded-3xl shadow-xl sm:border border-cream-200 overflow-hidden">
             {/* Header */}
-            <div className="bg-cream-100 p-4 border-b border-cream-200 flex items-center justify-between shadow-sm">
+            <div className="bg-cream-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] border-b border-cream-200 flex items-center justify-between shadow-sm">
                 <div className="flex items-center">
-                    <div className="w-8 h-8 bg-soft-gold rounded-full flex items-center justify-center mr-3">
-                        <Bot className="w-5 h-5 text-white" />
+                    <div className="w-10 h-10 sm:w-8 sm:h-8 bg-soft-gold rounded-full flex items-center justify-center mr-3">
+                        <Bot className="w-6 h-6 sm:w-5 sm:h-5 text-white" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-warm-700">Moos Assistant</h3>
-                        <p className="text-xs text-warm-500">Helping {friendName}</p>
+                        <h3 className="font-bold text-warm-700 text-base sm:text-sm">Moos Assistant</h3>
+                        <p className="text-sm sm:text-xs text-warm-500">Helping {friendName}</p>
                     </div>
                 </div>
                 {exchangeCount >= 2 && (
                     <button
                         onClick={handleSkip}
-                        className="text-xs text-warm-400 hover:text-warm-600 underline"
+                        className="text-sm sm:text-xs text-warm-400 hover:text-warm-600 underline py-2 px-3 -mr-2 min-h-[44px] flex items-center"
                     >
                         I'm done
                     </button>
@@ -236,14 +188,14 @@ Start by introducing yourself briefly and asking your first question about ${fri
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 sm:space-y-4 bg-gray-50 overscroll-contain">
                 {messages.map((msg) => (
                     <div
                         key={msg.id}
                         className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                         <div
-                            className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed ${msg.sender === 'user'
+                            className={`max-w-[85%] sm:max-w-[80%] p-3 sm:p-3 rounded-2xl text-base sm:text-sm leading-relaxed ${msg.sender === 'user'
                                     ? 'bg-soft-gold text-white rounded-br-none shadow-md'
                                     : 'bg-white text-warm-700 border border-cream-200 rounded-bl-none shadow-sm'
                                 }`}
@@ -266,23 +218,23 @@ Start by introducing yourself briefly and asking your first question about ${fri
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-cream-200">
-                <div className="flex items-end space-x-2">
+            <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white border-t border-cream-200">
+                <div className="flex items-end space-x-3">
                     <textarea
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Type your answer..."
-                        className="flex-1 resize-none border border-cream-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-soft-gold focus:border-transparent min-h-[50px] max-h-[120px] text-warm-700 placeholder-warm-300 bg-cream-50"
+                        className="flex-1 resize-none border border-cream-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-soft-gold focus:border-transparent min-h-[52px] max-h-[120px] text-base sm:text-sm text-warm-700 placeholder-warm-300 bg-cream-50"
                         rows={2}
                         disabled={isTyping}
                     />
                     <button
                         onClick={handleSend}
                         disabled={!inputValue.trim() || isTyping}
-                        className="bg-soft-gold text-white p-3 rounded-xl hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
+                        className="bg-soft-gold text-white p-3 rounded-xl hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md min-w-[48px] min-h-[48px] flex items-center justify-center"
                     >
-                        <Send className="w-5 h-5" />
+                        <Send className="w-6 h-6 sm:w-5 sm:h-5" />
                     </button>
                 </div>
             </div>

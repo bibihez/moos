@@ -531,7 +531,7 @@ export default function App() {
   );
 
   const renderQuestions = () => (
-    <div className="min-h-screen bg-cream-50 p-4 pt-8">
+    <div className="min-h-[100dvh] bg-cream-50 sm:p-4 sm:pt-8 flex items-center justify-center">
       {currentBirthday && (
         <QuestionFlow
           friendName={currentBirthday.friendName}
