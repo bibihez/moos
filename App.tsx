@@ -309,45 +309,45 @@ export default function App() {
   // --- Renderers ---
 
   const renderLanding = () => (
-    <Layout title="">
-      <Card className="flex flex-col space-y-6 pt-2">
-        <div className="flex justify-center mb-2">
-          <MoosMascot size={140} />
+    <Layout title="" hideLogo>
+      <Card className="flex flex-col space-y-4 sm:space-y-6 pt-2">
+        <div className="flex justify-center">
+          <MoosMascot size={80} className="sm:w-[100px] sm:h-[100px]" />
         </div>
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-warm-800">Moos</h2>
-          <p className="text-warm-500 text-sm px-4">
-            Turn your friend group into gift-finding geniuses.<br />
-            <span className="text-soft-gold font-bold">No login required.</span>
+        <div className="text-center space-y-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-warm-800">Moos</h2>
+          <p className="text-warm-500 text-xs sm:text-sm px-2">
+            Turn your friend group into gift-finding geniuses.
+            <span className="text-soft-gold font-bold ml-1">No login required.</span>
           </p>
         </div>
 
-        <div className="space-y-4 pt-4">
+        <div className="space-y-3 sm:space-y-4">
           <Input
             label="Birthday Person's Name"
             placeholder="e.g. Sarah"
             value={createForm.friendName}
             onChange={e => setCreateForm({ ...createForm, friendName: e.target.value })}
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-warm-700 mb-1">Birthday Date</label>
+              <label className="block text-sm font-medium text-warm-700 mb-1 ml-4">Birthday Date</label>
               <input
                 type="date"
                 value={createForm.date}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreateForm({ ...createForm, date: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-cream-50 border border-cream-200 focus:outline-none focus:ring-2 focus:ring-soft-gold text-warm-700"
+                className="w-full px-4 py-3 sm:py-4 rounded-2xl sm:rounded-3xl bg-white border-2 border-transparent shadow-soft focus:outline-none focus:ring-2 focus:ring-soft-gold text-warm-700"
               />
             </div>
             <Input
-              label="Organizer (You)"
-              placeholder="Your Name"
+              label="Your Name"
+              placeholder="Organizer"
               value={createForm.organizerName}
               onChange={e => setCreateForm({ ...createForm, organizerName: e.target.value })}
             />
           </div>
 
-          <div className="bg-cream-100 p-4 rounded-xl space-y-3">
+          <div className="bg-cream-100 p-3 sm:p-4 rounded-xl space-y-2">
             <label className="text-xs font-bold text-warm-500 uppercase">Budget Range (€)</label>
             <div className="flex items-center space-x-2">
               <input
@@ -367,7 +367,7 @@ export default function App() {
           </div>
 
           <Input
-            label="Organizer Email"
+            label="Your Email"
             type="email"
             placeholder="To send you the final plan"
             value={createForm.organizerEmail}

@@ -1,8 +1,13 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
+html {
+    background-color: #FDFBF7;
+}
+
 body {
     background-color: #FDFBF7;
+    min-height: 100dvh;
     background-image:
         radial-gradient(at 0% 0%, #FAE5C7 0%, transparent 50%),
         radial-gradient(at 100% 0%, #F7F3EB 0%, transparent 50%),
